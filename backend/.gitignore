@@ -673,3 +673,9 @@ fabric.properties
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/rider,csharp,visualstudiocode,visualstudio
+/.idea/.idea.backend/.idea/discord.xml
+/.idea/.idea.backend/.idea/encodings.xml
+/.idea/.idea.backend/.idea/dataSources.xml
+/.idea/.idea.backend/.idea/indexLayout.xml
+/.idea/.idea.backend/.idea/.gitignore
+/.idea/.idea.backend/.idea/vcs.xml
