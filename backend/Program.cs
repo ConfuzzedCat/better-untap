@@ -1,6 +1,9 @@
 using backend.Data.Context;
 using backend.Data.Entities;
+using backend.Extensions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.Filters;
 
@@ -37,6 +40,18 @@ public class Program
         builder.Services.AddIdentityApiEndpoints<User>()
             .AddEntityFrameworkStores<DataContext>();
         
+        builder.Services.Configure<IdentityOptions>(options =>
+        {
+            // Default User settings.
+            options.User.AllowedUserNameCharacters =
+                "abcdefghijklmnopqrstuvwxyzæøåABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ0123456789-._@+";
+        });
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = "NordtapCookie";
+            options.ExpireTimeSpan = TimeSpan.FromDays(365);
+        });
+        
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
@@ -47,7 +62,7 @@ public class Program
             app.UseSwaggerUI();
         }
 
-        app.MapIdentityApi<User>();
+        app.MapIdentityApiCustom<User>();
 
         app.UseHttpsRedirection();
 
