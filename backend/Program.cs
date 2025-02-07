@@ -1,5 +1,7 @@
 using backend.Data.Context;
 using backend.Data.Entities;
+using backend.Data.Services;
+using backend.Data.Services.Interfaces;
 using backend.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +18,8 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
 
         builder.Services.AddControllers();
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -62,7 +66,7 @@ public class Program
             app.UseSwaggerUI();
         }
 
-        app.MapIdentityApiCustom<User>();
+        app.MapIdentityApiCustom();
 
         app.UseHttpsRedirection();
 

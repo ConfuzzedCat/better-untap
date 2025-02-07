@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using backend.Data.Entities;
+using backend.Data.Services;
+using backend.Data.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
@@ -13,14 +16,13 @@ public static class IdentityApiEndpointRouteBuilderExtensions
     /// <summary>
     /// Add endpoints for registering, logging in, and logging out using ASP.NET Core Identity.
     /// </summary>
-    /// <typeparam name="TUser">The type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
+    /// <typeparam name="User">The type describing the user. This should match the generic parameter in <see cref="UserManager{TUser}"/>.</typeparam>
     /// <param name="endpoints">
     /// The <see cref="IEndpointRouteBuilder"/> to add the identity endpoints to.
     /// Call <see cref="EndpointRouteBuilderExtensions.MapGroup(IEndpointRouteBuilder, string)"/> to add a prefix to all the endpoints.
     /// </param>
     /// <returns>An <see cref="IEndpointConventionBuilder"/> to further customize the added endpoints.</returns>
-    public static IEndpointConventionBuilder MapIdentityApiCustom<TUser>(this IEndpointRouteBuilder endpoints)
-        where TUser : class, new()
+    public static IEndpointConventionBuilder MapIdentityApiCustom(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
@@ -34,8 +36,18 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         routeGroup.MapPost("/register", async Task<Results<Created, ValidationProblem>>
             ([FromBody] RegisterRequest registration, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
-            var userStore = sp.GetRequiredService<IUserStore<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<User>>();
+            var userStore = sp.GetRequiredService<IUserStore<User>>();
+            var inviteCodeService = sp.GetRequiredService<IInviteCodeService>();
+            bool isValid = await inviteCodeService.ValidateCode(registration.InviteCode);
+            if (isValid == false)
+            {
+                return CreateValidationProblem(IdentityResult.Failed( new IdentityError
+                {
+                    Code = "InvalidInviteCode",
+                    Description = "The given invite code couldn't be used."
+                }));
+            }
             var username = registration.Username;
 
             if (string.IsNullOrWhiteSpace(username))
@@ -43,7 +55,12 @@ public static class IdentityApiEndpointRouteBuilderExtensions
                 return CreateValidationProblem(IdentityResult.Failed(userManager.ErrorDescriber.InvalidUserName(username)));
             }
 
-            var user = new TUser();
+            var user = new User(registration.InviteCode);
+            var isSetToUsed = await inviteCodeService.SetCodeStatus(registration.InviteCode);
+            if (isSetToUsed == false)
+            {
+                throw new Exception($"Couldn't set invite code as used. Code: {registration.InviteCode}");
+            }
             await userStore.SetUserNameAsync(user, username, CancellationToken.None);
             var result = await userManager.CreateAsync(user, registration.Password);
 
@@ -57,7 +74,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         routeGroup.MapPost("/login", async Task<Results<Ok<AccessTokenResponse>, EmptyHttpResult, ProblemHttpResult>>
             ([FromBody] LoginRequest login, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp) =>
         {
-            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var signInManager = sp.GetRequiredService<SignInManager<User>>();
 
             var useCookieScheme = (useCookies == true) || (useSessionCookies == true);
             var isPersistent = (useCookies == true) && (login.RememberMe == true);
@@ -77,14 +94,14 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         routeGroup.MapPost("/refresh", async Task<Results<Ok<AccessTokenResponse>, UnauthorizedHttpResult, SignInHttpResult, ChallengeHttpResult>>
             ([FromBody] RefreshRequest refreshRequest, [FromServices] IServiceProvider sp) =>
         {
-            var signInManager = sp.GetRequiredService<SignInManager<TUser>>();
+            var signInManager = sp.GetRequiredService<SignInManager<User>>();
             var refreshTokenProtector = bearerTokenOptions.Get(IdentityConstants.BearerScheme).RefreshTokenProtector;
             var refreshTicket = refreshTokenProtector.Unprotect(refreshRequest.RefreshToken);
 
             // Reject the /refresh attempt with a 401 if the token expired or the security stamp validation fails
             if (refreshTicket?.Properties?.ExpiresUtc is not { } expiresUtc ||
                 timeProvider.GetUtcNow() >= expiresUtc ||
-                await signInManager.ValidateSecurityStampAsync(refreshTicket.Principal) is not TUser user)
+                await signInManager.ValidateSecurityStampAsync(refreshTicket.Principal) is not User user)
 
             {
                 return TypedResults.Challenge();
@@ -172,7 +189,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         accountGroup.MapGet("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<User>>();
             if (await userManager.GetUserAsync(claimsPrincipal) is not { } user)
             {
                 return TypedResults.NotFound();
@@ -184,7 +201,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         accountGroup.MapPost("/info", async Task<Results<Ok<InfoResponse>, ValidationProblem, NotFound>>
             (ClaimsPrincipal claimsPrincipal, [FromBody] InfoRequest infoRequest, HttpContext context, [FromServices] IServiceProvider sp) =>
         {
-            var userManager = sp.GetRequiredService<UserManager<TUser>>();
+            var userManager = sp.GetRequiredService<UserManager<User>>();
             if (await userManager.GetUserAsync(claimsPrincipal) is not { } user)
             {
                 return TypedResults.NotFound();
@@ -290,6 +307,11 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         /// The user's password.
         /// </summary>
         public required string Password { get; init; }
+        
+        /// <summary>
+        /// The user's invite code.
+        /// </summary>
+        public required Guid InviteCode { get; init; }
     }
     /// <summary>
     /// The request type for the "/manage/info" endpoint added by <see cref="IdentityApiEndpointRouteBuilderExtensions.MapIdentityApiCustom"/>.

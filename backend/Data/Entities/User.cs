@@ -10,6 +10,8 @@ public class User : IdentityUser
     public int GameTotal { get; set; }
     public TimeSpan GameTime { get; set; }
     public DateTime CreationDate { get; set; }
+    public Guid? InviteCode { get; set; }
+    public bool isDeleted { get; set; }
 
     public User()
     {
@@ -19,6 +21,7 @@ public class User : IdentityUser
         GameTotal = 0;
         GameTime = TimeSpan.Zero;
         CreationDate = DateTime.UtcNow;
+        isDeleted = false;
     }
 
     public User(string username) : base(username)
@@ -29,5 +32,12 @@ public class User : IdentityUser
         GameTotal = 0;
         GameTime = TimeSpan.Zero;
         CreationDate = DateTime.UtcNow;
+        isDeleted = false;
     }
+
+    public User(Guid _InviteCode) : this()
+    {
+        InviteCode = _InviteCode;
+    } 
+    public User(InviteCode code) : this(code.Code) {}
 }
