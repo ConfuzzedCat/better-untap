@@ -1,5 +1,8 @@
+using backend.Data;
 using backend.Data.Context;
 using backend.Data.Entities;
+using backend.Data.Services;
+using backend.Data.Services.Interfaces;
 using backend.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +14,13 @@ namespace backend;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
 
         builder.Services.AddControllers();
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -38,6 +43,7 @@ public class Program
 
         builder.Services.AddAuthorization();
         builder.Services.AddIdentityApiEndpoints<User>()
+            .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<DataContext>();
         
         builder.Services.Configure<IdentityOptions>(options =>
@@ -62,15 +68,26 @@ public class Program
             app.UseSwaggerUI();
         }
 
-        app.MapIdentityApiCustom<User>();
+        app.MapIdentityApiCustom();
 
         app.UseHttpsRedirection();
 
         app.UseAuthorization();
 
-
         app.MapControllers();
+        
+        using (var scope = app.Services.CreateScope())
+        {
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-        app.Run();
+            foreach (var role in Constants.Roles)
+            {
+                if (await roleManager.RoleExistsAsync(role)) continue;
+                var result = await roleManager.CreateAsync(new IdentityRole(role));
+                if (!result.Succeeded) throw new Exception($"Couldn't create role: {role}");
+            }
+        }
+
+        await app.RunAsync();
     }
 }

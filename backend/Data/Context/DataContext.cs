@@ -7,6 +7,7 @@ namespace backend.Data.Context;
 
 public class DataContext : IdentityDbContext<User>
 {
+    public DbSet<InviteCode> InviteCodesDb { get; set; }
     public DataContext()
     {
     }
