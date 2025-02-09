@@ -281,6 +281,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         return new()
         {
             Username = await userManager.GetUserNameAsync(user) ?? throw new NotSupportedException("Users must have an username."),
+            Roles = (await userManager.GetRolesAsync(user)).ToArray()
         };
     }
 
@@ -366,5 +367,7 @@ public static class IdentityApiEndpointRouteBuilderExtensions
         /// The username associated with the authenticated user.
         /// </summary>
         public required string Username { get; init; }
+        
+        public required string[] Roles { get; init; }
     }
 }

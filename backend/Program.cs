@@ -1,3 +1,4 @@
+using backend.Data;
 using backend.Data.Context;
 using backend.Data.Entities;
 using backend.Data.Services;
@@ -13,7 +14,7 @@ namespace backend;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +43,7 @@ public class Program
 
         builder.Services.AddAuthorization();
         builder.Services.AddIdentityApiEndpoints<User>()
+            .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<DataContext>();
         
         builder.Services.Configure<IdentityOptions>(options =>
@@ -72,9 +74,20 @@ public class Program
 
         app.UseAuthorization();
 
-
         app.MapControllers();
+        
+        using (var scope = app.Services.CreateScope())
+        {
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-        app.Run();
+            foreach (var role in Constants.Roles)
+            {
+                if (await roleManager.RoleExistsAsync(role)) continue;
+                var result = await roleManager.CreateAsync(new IdentityRole(role));
+                if (!result.Succeeded) throw new Exception($"Couldn't create role: {role}");
+            }
+        }
+
+        await app.RunAsync();
     }
 }

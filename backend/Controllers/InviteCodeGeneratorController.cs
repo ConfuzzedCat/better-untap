@@ -9,7 +9,7 @@ namespace backend.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize]//(Roles = "trusted")
+[Authorize(Roles = "admin,trusted")]
 public class InviteCodeGeneratorController : ControllerBase
 {
     private readonly ILogger<InviteCodeGeneratorController> _logger;
